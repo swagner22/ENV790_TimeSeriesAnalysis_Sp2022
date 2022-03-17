@@ -1,0 +1,223 @@
+---
+title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2021"
+author: "Steven Wagner"
+subtitle: Assignment 6 - Due date 03/16/22
+output:
+  html_document:
+    df_print: paged
+geometry: margin=2.54cm
+header-includes:
+- \usepackage{enumerate}
+- \usepackage{enumitem}
+---
+  
+## Directions
+  
+  You should open the .rmd file corresponding to this assignment on RStudio. The file is available on our class repository on Github. And to do so you will need to fork our repository and link it to your RStudio.  
+
+Once you have the project open the first thing you will do is change "Student Name" on line 3 with your name. 
+Then you will start working through the assignment by  **creating code and output** that answer each question. Be sure to use this assignment document. Your report should contain the answer to each question and any plots/tables you obtained (when applicable).
+
+When you have completed the assignment, **Knit** the text and code into a single PDF file. Rename the pdf file such that it includes your first and last name (e.g., "LuanaLima_TSA_A06_Sp22.Rmd"). Submit this pdf using Sakai. 
+
+## Questions 
+
+This assignment has general questions about ARIMA Models. 
+
+Packages needed for this assignment: "forecast","tseries". Do not forget to load them before running your script, since they are NOT default packages.\\
+
+```{r}
+#Load/install required package here
+library(lubridate)
+library(ggplot2)
+library(forecast)  
+library(Kendall)
+library(tseries)
+library(outliers)
+library(tidyverse)
+library(sarima)
+library(stats)
+library(simEd)
+```
+
+
+## Q1
+Describe the important characteristics of the sample autocorrelation function (ACF) plot and the partial sample autocorrelation function (PACF) plot for the following models: 
+
+\begin{enumerate}[label=(\alph*)]
+
+\item AR(2)
+
+> Answer: The AR model has a longer memory. The ACF for the AR models will decay exponentially with time while the PACF will identify the order of the AR model. Therefore, a model with AR(2) will have a PACF plot where the p = 2 and the two lags will have a significant impact on the result in t = 0 (or the current value depends on its own 2 previous values). Visually, this will look like two bars that are statistically significant followed by bars that hover around the correlation of 0. The bars would likely be positive, because this is more often true of AR models. 
+
+\item MA(1)
+
+> Answer: The opposite is true of a moving average plot, which visually looks more staggered. The PACF model will decay exponentially. However, the AcF model will identify the order of the MA model. Here, q = 1, so there will be one bar that is statistically significant (or only lag of 1 has a significant impact on the next period's result). It is often that there's negative autocorrelation at lag 1, so this bar will be negative. This all means that only the previous deviation will impact the current deviation.
+
+\end{enumerate}
+
+## Q2
+Recall that the non-seasonal ARIMA is described by three parameters ARIMA$(p,d,q)$ where $p$ is the order of the autoregressive component, $d$ is the number of times the series need to be differenced to obtain stationarity and $q$ is the order of the moving average component. If we don't need to difference the series, we don't need to specify the "I" part and we can use the short version, i.e., the ARMA$(p,q)$. Consider three models: ARMA(1,0), ARMA(0,1) and ARMA(1,1) with parameters $\phi=0.6$ and $\theta= 0.9$. The $\phi$ refers to the AR coefficient and the $\theta$ refers to the MA coefficient. Use R to generate $n=100$ observations from each of these three models
+
+```{r}
+set.seed(204)
+arma10.sim <- arima.sim(list(order = c(1,0,0), ar = c(0.6)), n = 100)
+arma01.sim <- arima.sim(list(order = c(0,0,1), ma = c(0.9)), n = 100)
+arma11.sim <- arima.sim(list(order = c(1,0,1), ar = c(0.6), ma = c(0.9)), n = 100)
+```
+
+
+\begin{enumerate}[label=(\alph*)]
+
+\item Plot the sample ACF for each of these models in one window to facilitate comparison (Hint: use command $par(mfrow=c(1,3))$ that divides the plotting window in three columns).  
+
+```{r}
+plot_arma10 <- Acf(arma10.sim,lag.max=40, type="correlation", plot=FALSE)
+plot_arma01 <- Acf(arma01.sim,lag.max=40, type="correlation", plot=FALSE)
+plot_arma11 <-Acf(arma11.sim,lag.max=40,type ="correlation", plot=FALSE)
+
+par(mfrow=c(1,3))
+plot_use_1<-plot(plot_arma10,main = "AR = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_2<-plot(plot_arma01,main = "MA = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_3<-plot(plot_arma11,main = "ARMA (1,1)",xlim=c(0,40),ylim=c(-0.5,1))
+
+```
+
+
+\item Plot the sample PACF for each of these models in one window to facilitate comparison.  
+
+```{r}
+
+plot_parma10 <- Pacf(arma10.sim,lag.max=40, main = "PACF", plot=FALSE)
+plot_parma01 <- Pacf(arma01.sim,lag.max=40, main = "PACF", plot=FALSE)
+plot_parma11 <-Pacf(arma11.sim,lag.max=40,main = "PACF", plot=FALSE)
+
+par(mfrow=c(1,3))
+plot_use_4<-plot(plot_parma10,main = "AR = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_5<-plot(plot_parma01,main = "MA = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_6<-plot(plot_parma11,main = "ARMA (1,1)",xlim=c(0,40),ylim=c(-0.5,1))
+```
+
+\item Look at the ACFs and PACFs. Imagine you had these plots for a data set and you were asked to identify the model, i.e., is it AR, MA or ARMA and the order of each component. Would you be identify them correctly? Explain your answer.
+
+> Answer: The first plot (AR = 1) is supposed to be a autoregressive process with one lag having a statistically significant impact. The ACF plot exhibits exponential decay and the PACF plot shows one significant lag. This is indicative of an AR model with a p = 1, which is what we'd expect. The second plot (MA = 1) should be a moving average plot with the previous deviation having an impact on the current deviation. The ACF plot appears to have one significant value while the PACF plot attenuates to zero over time. So, I'd say that it's an MA process with an order of q = 1. The last plot should be an ARMA with p = 1 and q = 1. The ACF plot exhibits some rapid decline and the future levels don't seem to diminish as fast as the the MA = 1 plot. There are two values of significance and a more rapid decline than the AR = 1 plot. The PACF plot's first two lags are quite significant in opposite directions with up to three lags indicating some sort of significance. The pattern shows some gradual approach to zero. I think it would be difficult to say what this is. The ACF plot does look quite a bit like the AR process and the PACF plot looks more like the MA process. So, I might say that it is an ARMA model with q = 2 (from the ACF plot) and p = 3 (from the PACF plot).
+
+
+\item Compare the ACF and PACF values R computed with the theoretical values you provided for the coefficients. Do they match? Explain your answer.
+```{r}
+
+arma10_100 <- Arima(arma10.sim,order=c(1,0,0),include.drift=TRUE)
+print(arma10_100)
+arma01_100 <- Arima(arma01.sim,order=c(0,0,1),include.drift=TRUE)
+print(arma01_100)
+arma11_100 <- Arima(arma11.sim,order=c(1,0,1),include.drift=TRUE)
+print(arma11_100)
+
+```
+
+> Answer: Ignoring the moving average coefficient of q = 0.9 and looking at whether p = 0.6, we see the coefficient in the AR = 1 plot to be 0.5149. In the ARMA model, this is 0.474 (and the moving average coefficient is 1). So, the model is close to the theoretical value if we just look at the AR = 1 plot and a bit farther when we look at the ARMA model. The MA = 1 where q should be 0.9 is a near match (q = 0.91)
+
+
+\item Increase number of observations to $n=1000$ and repeat parts (a)-(d).
+
+
+```{r}
+set.seed(205)
+arma10.sim2 <- arima.sim(list(order = c(1,0,0), ar = c(0.6)), n = 1000)
+arma01.sim2 <- arima.sim(list(order = c(0,0,1), ma = c(0.9)), n = 1000)
+arma11.sim2 <- arima.sim(list(order = c(1,0,1), ar = c(0.6), ma = c(0.9)), n = 1000)
+
+```
+
+
+\begin{enumerate}[label=(\alph*)]
+
+\item Plot the sample ACF for each of these models in one window to facilitate comparison (Hint: use command $par(mfrow=c(1,3))$ that divides the plotting window in three columns).  
+
+```{r}
+plot_arma10 <- Acf(arma10.sim2,lag.max=40, type="correlation", plot=FALSE)
+plot_arma01 <- Acf(arma01.sim2,lag.max=40, type="correlation", plot=FALSE)
+plot_arma11 <-Acf(arma11.sim2,lag.max=40,type ="correlation", plot=FALSE)
+
+par(mfrow=c(1,3))
+plot_use_1<-plot(plot_arma10,main = "AR = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_2<-plot(plot_arma01,main = "MA = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_3<-plot(plot_arma11,main = "ARMA (1,1)",xlim=c(0,40),ylim=c(-0.5,1))
+
+```
+
+
+\item Plot the sample PACF for each of these models in one window to facilitate comparison.  
+
+```{r}
+
+plot_parma10 <- Pacf(arma10.sim,lag.max=40, main = "PACF", plot=FALSE)
+plot_parma01 <- Pacf(arma01.sim,lag.max=40, main = "PACF", plot=FALSE)
+plot_parma11 <-Pacf(arma11.sim,lag.max=40,main = "PACF", plot=FALSE)
+
+par(mfrow=c(1,3))
+plot_use_4<-plot(plot_parma10,main = "AR = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_5<-plot(plot_parma01,main = "MA = 1",xlim=c(0,40),ylim=c(-0.5,1))
+plot_use_6<-plot(plot_parma11,main = "ARMA (1,1)",xlim=c(0,40),ylim=c(-0.5,1))
+```
+
+\item Look at the ACFs and PACFs. Imagine you had these plots for a data set and you were asked to identify the model, i.e., is it AR, MA or ARMA and the order of each component. Would you be identify them correctly? Explain your answer.
+
+> Answer: The ACF plots stay closer to zero faster with 1,000 records in the sample compared to using just 100 records over time (perhaps an indication of greater precision). However, the ACF plot for the AR = 1 and MA = 1 plot is very different using 1,000 records compared to the one with 100 records. It looks  closer to the AR = 1 plot, with a decay.  The PACF plots look pretty similar to each other with similar levels of significance. 
+As before, the first plot (AR = 1) is supposed to be a autoregressive process with one lag having a statistically significant impact. Also as before, the ACF plot exhibits exponential decay and the PACF plot shows one significant lag. This is indicative of an AR model with a p = 1, which is what we'd expect and found with 100 records. The second plot (MA = 1) should be a moving average plot with the previous deviation having an impact on the current deviation. Like before, the ACF plot appears to have one significant value while the PACF plot attenuates to zero over time. So, I'd say that it's an MA process with an order of q = 1 as we found in the other. The last plot should be an ARMA with p = 1 and q = 1. The ACF plot exhibits a more gradual decline. There are about five values of significance instead of 2) and a similar pattern to the AR = 1 plot. The PACF plot has three lags that are quite significant in a similar pattern to when the n = 100. Given the very exponential decline in the ACF plot and the significance of the three lags in the PACF plot, I'd be inclined to say this was an autoregressive plot with a p = 3, which was different from my conclusion where n = 100 and I was inclined to say it could be an ARMA model.
+
+
+\item Compare the ACF and PACF values R computed with the theoretical values you provided for the coefficients. Do they match? Explain your answer.
+```{r}
+
+arma10_1000 <- Arima(arma10.sim2,order=c(1,0,0),include.drift=TRUE)
+print(arma10_1000)
+arma01_1000 <- Arima(arma01.sim2,order=c(0,0,1),include.drift=TRUE)
+print(arma01_1000)
+arma11_1000 <- Arima(arma11.sim2,order=c(1,0,1),include.drift=TRUE)
+print(arma11_1000)
+
+```
+> Answer: Ignoring the moving average coefficient of q = 0.9 and looking at whether p = 0.6, we see the coefficient in the AR = 1 plot to be 0.62, which was much closer than when we had n = 100 (0.5149), indicating greater precision. In the ARMA model, this is 0.665 (and the moving average coefficient is 0.9147). So, the model is close to the theoretical value if we just look at the AR = 1 plot and also for the ARMA model. Both more precisely estimated the theoretical model across the board.
+
+
+\end{enumerate}
+
+## Q3
+
+Consider the ARIMA model $y_t=0.7*y_{t-1}-0.25*y_{t-12}+a_t-0.1*a_{t-1}$
+
+\begin{enumerate}[label=(\alph*)]
+
+\item Identify the model using the notation ARIMA$(p,d,q)(P,D,Q)_ s$, i.e., identify the integers $p,d,q,P,D,Q,s$ (if possible) from the equation.
+
+> Answer: Here, there is one lag of y identified, so the p = 1 (the AR term). There is one lag of the MA term (deviation) so the p = 1. The only seasonal term specified here is one seasonal autoregressive term (SAR), so P = 1. There is no seasonal Q term, so this is 0. Neither of the difference terms are specified here (d or D), so these are assumed to be 0. So, we get an ARIMA(1,0,1)(1,0,0)s model.
+
+\item Also from the equation what are the values of the parameters, i.e., model coefficients. 
+
+> Answer: The coefficient for the AR term is 0.7. The coefficient on the SAR term is -0.25. The coefficient on the MA term is -0.1. 
+
+\end{enumerate}
+## Q4
+
+Plot the ACF and PACF of a seasonal ARIMA$(0, 1)\times(1, 0)_{12}$ model with $\phi =0 .8$ and $\theta = 0.5$ using R. The $12$ after the bracket tells you that $s=12$, i.e., the seasonal lag is 12, suggesting monthly data whose behavior is repeated every 12 months. You can generate as many observations as you like. Note the Integrated part was omitted. It means the series do not need differencing, therefore $d=D=0$. Plot ACF and PACF for the simulated data. Comment if the plots are well representing the model you simulated, i.e., would you be able to identify the order of both non-seasonal and seasonal components from the plots? Explain.
+
+On Q4 I ask you to simulate a seasonal ARIMA model. The easiest way to do it is using function sim_sarima() from package "sarima". This is a package we haven't used so make sure you install it and then just copy and paste the two lines below.
+```{r}
+set.seed(206)
+sarima_model <- sim_sarima(model=list(ma=0.5,sar=0.8, nseasons=12), n=1000) 
+
+acf_sarima <-Acf(sarima_model,lag.max=40,type ="correlation", plot=FALSE)
+plot_acf_sarima<-plot(acf_sarima,main = "ACF",xlim=c(0,40),ylim=c(-0.5,1))
+plot_acf_sarima
+
+
+pacf_sarima <-Pacf(sarima_model,lag.max=40,main = "PACF", plot=FALSE)
+plot_pacf_sarima<-plot(pacf_sarima,main = "PACF",xlim=c(0,40),ylim=c(-0.5,1))
+plot_pacf_sarima
+
+sarima_model_spec <- Arima(sarima_model,order=c(0,0,1),seasonal=c(1,0,0),include.drift=TRUE)
+print(sarima_model_spec)
+
+```
+> Answer: The MA term for q = 1 is about 0.6 when should be 0.5, which is a bit close. We should expect to see one significant value in the ACF plot to get the order from the MA process. We do only see one significant value at the onset, which is indicative that we are properly representing the non-seasonal component and that q = 1. There's also some rapid decline to 0 in the PACF plot, giving us more evidence to make this determination. We should expect that the seasonal component to follow an autoregresive process. Looking at the 12th lag from the PACF plot, we see only one spike, which indicates that there is a seasonal autoregressive (SAR) process. There's also multiple spikes in the ACF plot, further confirming this. This suggests that P = 1. So, I think we can properly identify the order of both the seasonal and non-seasonal components from the plots.
